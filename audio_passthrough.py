@@ -8,7 +8,6 @@ FORMAT = pyaudio.paInt16  # 16-bit resolution
 INPUT_CHANNELS = 1        # Mono input
 OUTPUT_CHANNELS = 1       # Mono output
 RATE = 44100              # Standard sample rate for audio
-SUPPORTED_RATES = [44100]  # Use a standard sample rate
 
 class VoicePassthroughApp:
     def __init__(self, root):
@@ -71,15 +70,25 @@ class VoicePassthroughApp:
         self.output_device_combo.bind("<<ComboboxSelected>>", self.update_output_device)
 
     def update_input_device(self, event):
-        selected_index = self.input_device_combo.current()
-        self.input_device_index = selected_index
+        selected_index = self.input_device_combo.get()
+        self.input_device_index = self.find_device_index_by_name(selected_index)
 
     def update_output_device(self, event):
-        selected_index = self.output_device_combo.current()
-        self.output_device_index = selected_index
+        selected_index = self.output_device_combo.get()
+        self.output_device_index = self.find_device_index_by_name(selected_index)
+
+    def find_device_index_by_name(self, name):
+        for i in range(self.p.get_device_count()):
+            dev_info = self.p.get_device_info_by_index(i)
+            if dev_info['name'] == name:
+                return i
+        return None
 
     def setup_stream(self):
-        # Setup input and output streams based on selected devices
+        # Ensure the devices are correctly selected and supported
+        if self.input_device_index is None or self.output_device_index is None:
+            raise ValueError("Input or output device not selected properly.")
+
         input_device_info = self.p.get_device_info_by_index(self.input_device_index)
         output_device_info = self.p.get_device_info_by_index(self.output_device_index)
 
@@ -87,17 +96,21 @@ class VoicePassthroughApp:
         print(f"Using Output Device: {output_device_info['name']}")
 
         # Open a stream for input and output
-        self.stream = self.p.open(
-            format=FORMAT,
-            channels=INPUT_CHANNELS,
-            rate=RATE,
-            input=True,
-            output=True,
-            input_device_index=self.input_device_index,
-            output_device_index=self.output_device_index,
-            frames_per_buffer=CHUNK,
-            stream_callback=self.audio_callback
-        )
+        try:
+            self.stream = self.p.open(
+                format=FORMAT,
+                channels=INPUT_CHANNELS,
+                rate=RATE,
+                input=True,
+                output=True,
+                input_device_index=self.input_device_index,
+                output_device_index=self.output_device_index,
+                frames_per_buffer=CHUNK,
+                stream_callback=self.audio_callback
+            )
+        except Exception as e:
+            messagebox.showerror("Error", f"Error setting up audio stream: {e}")
+            print(f"Error setting up audio stream: {e}")
 
     def audio_callback(self, in_data, frame_count, time_info, status):
         # Pass the audio input directly to the output
@@ -122,4 +135,3 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = VoicePassthroughApp(root)
     root.mainloop()
-z
